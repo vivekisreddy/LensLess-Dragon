@@ -1,4 +1,4 @@
-# Lensless-Drone-JP
+# LenslessImaging
 
 Collaborative repository for a lensless drone application. This project explores perception, sensing, and autonomy pipelines using lensless imaging and related computational methods for aerial robotics.
 
