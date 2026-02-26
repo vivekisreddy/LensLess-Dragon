@@ -1,37 +1,54 @@
+from picamera2 import Picamera2
 import cv2
+import os
+import datetime
 import time
 
-cap = cv2.VideoCapture("/dev/video0", cv2.CAP_V4L2)
+picam2 = Picamera2()
 
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-cap.set(cv2.CAP_PROP_FPS, 30)
+# FULL SENSOR MODE
+config = picam2.create_still_configuration(
+    main={"format": "RGB888", "size": (3280, 2464)}
+)
 
-print("Press ENTER to capture image")
-print("Press ESC to exit")
+picam2.configure(config)
+picam2.start()
+time.sleep(1)
 
-img_count = 0
+# Lock controls
+picam2.set_controls({
+    "AwbEnable": False,
+    "AeEnable": False,
+    "ExposureTime": 20000,
+    "AnalogueGain": 1.0
+})
 
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        print("Failed to grab frame")
-        break
+save_folder = "captures"
+os.makedirs(save_folder, exist_ok=True)
 
-    cv2.imshow("Preview", frame)
+print("Full sensor preview. Press ENTER to capture. q to quit.")
 
-    key = cv2.waitKey(1) & 0xFF
+try:
+    while True:
+        frame = picam2.capture_array()
+        frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
 
-    # ESC to exit
-    if key == 27:
-        break
+        # Resize for display ONLY (so OpenCV window fits screen)
+        display = cv2.resize(frame_bgr, (1280, 960))
+        cv2.imshow("Full Sensor Preview (Scaled Display)", display)
 
-    # ENTER to capture
-    if key == 13 or key == 10:
-        filename = f"capture_{img_count}.jpg"
-        cv2.imwrite(filename, frame)
-        print(f"Image saved: {filename}")
-        img_count += 1
+        key = cv2.waitKey(1) & 0xFF
 
-cap.release()
-cv2.destroyAllWindows()
+        if key == ord('q'):
+            break
+
+        elif key == 13:
+            timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+            filename = os.path.join(save_folder, f"psf_{timestamp}.png")
+            cv2.imwrite(filename, frame_bgr)
+            print("Saved:", filename)
+
+finally:
+    picam2.stop()
+    cv2.destroyAllWindows()
+

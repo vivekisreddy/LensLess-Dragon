@@ -179,7 +179,7 @@ def ADMM_Step(X,U,V,W,xi,eta,rho, precomputed):
 # ---------------------------
 # Original runADMM (grayscale) unchanged
 # ---------------------------
-def runADMM(psf2d, data2d):
+def runADMM(psf2d, data2d, show_progress=False):
     # STRICT: no cropping/padding; must match sizes
     if psf2d.shape != data2d.shape:
         raise ValueError(f"PSF shape {psf2d.shape} must equal data shape {data2d.shape} (no cropping).")
@@ -190,11 +190,15 @@ def runADMM(psf2d, data2d):
     PsiTPsi = precompute_PsiTPsi()
     R_divmat = precompute_R_divmat(H_fft, PsiTPsi)
 
-    image = None
     for i in range(iters):
-        X,U,V,W,xi,eta,rho = ADMM_Step(X,U,V,W,xi,eta,rho, [H_fft, data2d, X_divmat, R_divmat])
-        if i % disp_pic == 0:
-            print(i)
+        X,U,V,W,xi,eta,rho = ADMM_Step(
+            X,U,V,W,xi,eta,rho,
+            [H_fft, data2d, X_divmat, R_divmat]
+        )
+
+        # Only show progress if explicitly enabled
+        if show_progress and i % disp_pic == 0:
+            print(f"Iteration {i}")
             image = C(V)
             image[image < 0] = 0
             plt.figure()
@@ -203,9 +207,9 @@ def runADMM(psf2d, data2d):
             plt.axis("off")
             plt.show()
 
-    if image is None:
-        image = C(V)
-        image[image < 0] = 0
+    # Final reconstruction
+    image = C(V)
+    image[image < 0] = 0
     return image
 
 
@@ -216,9 +220,9 @@ def runADMM_rgb(psf, data):
     # grayscale measurement
     if data.ndim == 2:
         psf2d = psf if psf.ndim == 2 else psf[..., 0]
-        return runADMM(psf2d, data)
+        return runADMM(psf2d, data, show_progress=False)
 
-    # RGB measurement: choose PSF per channel or reuse grayscale PSF
+    # RGB measurement
     if psf.ndim == 2:
         psf_rgb = np.stack([psf, psf, psf], axis=2)
     else:
@@ -231,8 +235,12 @@ def runADMM_rgb(psf, data):
 
     recon = []
     for c in range(3):
-        print(f"\n=== Reconstructing channel {c} (0=R,1=G,2=B) ===")
-        recon_c = runADMM(psf_rgb[..., c], data[..., c])
+        print(f"Reconstructing channel {c}...")
+        recon_c = runADMM(
+            psf_rgb[..., c],
+            data[..., c],
+            show_progress=False   # <-- suppress per-iteration plots
+        )
         recon.append(recon_c)
 
     return np.stack(recon, axis=2)
